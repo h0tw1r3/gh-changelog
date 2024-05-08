@@ -28,8 +28,7 @@ type Git interface {
 	GetDateOfHash(hash string) (time.Time, error)
 	GetCurrentBranch() (string, error)
 	FetchAll() error
-	Tags() ([]string, error)
-	IsAncestorOf(commit, ancestor string) (bool, error)
+	Tags(bool) ([]string, error)
 }
 
 type GitHub interface {
@@ -146,7 +145,7 @@ type Tag struct {
 }
 
 func (b *Builder) addTags() error {
-	rawTags, err := b.git.Tags()
+	rawTags, err := b.git.Tags(b.ancestorsOnly)
 	if err != nil {
 		return fmt.Errorf("updating tags: %w", err)
 	}
@@ -182,18 +181,6 @@ func (b *Builder) addTags() error {
 
 	if b.filter != nil {
 		tags = b.filterTagsByName(tags, b.filter)
-	}
-
-	if b.ancestorsOnly {
-		b.branch, err = b.git.GetCurrentBranch()
-		if err != nil {
-			return fmt.Errorf("fetching the current branch: %w", err)
-		}
-
-		tags, err = b.filterTagsForBranch(tags, b.branch)
-		if err != nil {
-			return fmt.Errorf("filtering tags for current branch: %w", err)
-		}
 	}
 
 	if b.latestVersion {
@@ -252,28 +239,6 @@ func (b *Builder) filterTagsByName(tags []Tag, filter *regexp.Regexp) []Tag {
 		filteredTags = append(filteredTags, tag)
 	}
 	return filteredTags
-}
-
-func (b *Builder) filterTagsForBranch(tags []Tag, branch string) ([]Tag, error) {
-	var filteredTags []Tag
-	for _, tag := range tags {
-		if b.filter != nil {
-			if b.filter.MatchString(tag.Name) {
-				continue
-			}
-		}
-
-		ancestor, err := b.git.IsAncestorOf(tag.Name, branch)
-		if err != nil {
-			log.Errorf("could not determine if %s is an ancestor of %s: %v", tag.Name, branch, err)
-			return nil, err
-		}
-		if ancestor {
-			filteredTags = append(filteredTags, tag)
-		}
-	}
-
-	return filteredTags, nil
 }
 
 func (b *Builder) setNextVersion() error {

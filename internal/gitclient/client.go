@@ -86,9 +86,14 @@ func (g Git) FetchAll() error {
 	return err
 }
 
-func (g Git) Tags() ([]string, error) {
+func (g Git) Tags(ancestorOnly bool) ([]string, error) {
+	var mergedArg string
+	if ancestorOnly {
+		mergedArg = "--merged=HEAD"
+	}
+
 	tags, err := g.exec(execOptions{
-		args: []string{"for-each-ref", "--format='%(refname:short) %(objectname) %(taggerdate:iso-strict)'", "refs/tags"},
+		args: []string{"for-each-ref", "--format='%(refname:short) %(objectname) %(taggerdate:iso-strict)'", "refs/tags", mergedArg},
 	})
 
 	if err != nil {
@@ -96,22 +101,6 @@ func (g Git) Tags() ([]string, error) {
 	}
 	t := strings.Split(tags, "\n")
 	return t, nil
-}
-
-func (g Git) IsAncestorOf(commit, ancestor string) (bool, error) {
-	_, err := g.exec(execOptions{
-		args: []string{"merge-base", "--is-ancestor", commit, ancestor},
-	})
-
-	if err != nil {
-		if strings.Contains(err.Error(), "exit status 1") {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return true, nil
 }
 
 func NewGitClient(cmdContext execContext) Git {
